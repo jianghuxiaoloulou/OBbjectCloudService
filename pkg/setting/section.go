@@ -15,17 +15,13 @@ type GeneralSettingS struct {
 	LogFileExt  string
 	LogMaxSize  int
 	LogMaxAge   int
+	MaxThreads  int
+	MaxTasks    int
 }
 
 type DatabaseSettingS struct {
+	DBConn       string
 	DBType       string
-	UserName     string
-	Password     string
-	Host         string
-	DBName       string
-	TablePrefix  string
-	Charset      string
-	ParseTime    bool
 	MaxIdleConns int
 	MaxOpenConns int
 }
@@ -41,6 +37,7 @@ type ObjectSettingS struct {
 	TOKEN_Username      string
 	TOKEN_Password      string
 	TOKEN_URL           string
+	DOWN_Dest_Code      int
 }
 
 func (s *Setting) ReadSection(k string, v interface{}) error {

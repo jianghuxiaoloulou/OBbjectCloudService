@@ -11,6 +11,10 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+func init() {
+	readSetup()
+}
+
 func setupSetting() error {
 	setting, err := setting.NewSetting()
 	if err != nil {

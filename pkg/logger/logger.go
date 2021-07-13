@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"runtime"
-	"time"
 )
 
 type Level int8
@@ -121,9 +120,9 @@ func (l *Logger) WithCallersFrames() *Logger {
 func (l *Logger) JSONFormat(level Level, message string) map[string]interface{} {
 	data := make(Fields, len(l.fields)+4)
 	data["level"] = level.String()
-	data["time"] = time.Now()
+	// data["time"] = time.Now().Format("2006-01-01 15:04:05")
 	data["message"] = message
-	data["callers"] = l.callers
+	// data["callers"] = l.callers
 	if len(l.fields) > 0 {
 		for k, v := range l.fields {
 			if _, ok := data[k]; !ok {

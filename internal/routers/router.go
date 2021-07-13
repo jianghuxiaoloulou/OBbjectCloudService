@@ -2,6 +2,7 @@ package routers
 
 import (
 	_ "WowjoyProject/ObjectCloudService/docs"
+	v1 "WowjoyProject/ObjectCloudService/internal/routers/api/v1"
 
 	"github.com/gin-gonic/gin"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -15,25 +16,20 @@ func NewRouter() *gin.Engine {
 	// 注册中间件
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// url := ginSwagger.URL("http://127.0.0.1:8000/swagger/doc.json")
-	// r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
-
-	// article := v1.NewArticle()
-	// tag := v1.NewTag()
-	// apiv1 := r.Group("/api/v1")
-	// {
-	// 	apiv1.POST("/tags", tag.Create)
-	// 	apiv1.DELETE("/tags/:id", tag.Delete)
-	// 	apiv1.PUT("/tags/:id", tag.Update)
-	// 	apiv1.PATCH("/tags/:id/state", tag.Update)
-	// 	apiv1.GET("/tags", tag.List)
-
-	// 	apiv1.POST("/articles", article.Create)
-	// 	apiv1.DELETE("/articles/:id", article.Delete)
-	// 	apiv1.PUT("/articles/:id", article.Update)
-	// 	apiv1.PATCH("/articles/:id/state", article.Update)
-	// 	apiv1.GET("/articles/:id", article.Get)
-	// 	apiv1.GET("/articles", article.List)
-	// }
+	apiv1 := r.Group("/api/v1")
+	{
+		// 上传单文件
+		apiv1.POST("/Object/File/:File", v1.UploadFile)
+		// 检查号上传
+		apiv1.POST("/Object/AccessNumber/:AccessNumber", v1.UploadNumbers)
+		// 单文件下载
+		apiv1.GET("/Object/File/:File", v1.DownFile)
+		// 检查号下载
+		apiv1.GET("/Object/AccessNumber/:AccessNumber", v1.DownNumbers)
+		// 单文件删除
+		apiv1.DELETE("/Object/File/:File", v1.DeleteFile)
+		// 检查号删除
+		apiv1.DELETE("/Object/AccessNumber/:AccessNumber", v1.DeleteNumbers)
+	}
 	return r
 }
