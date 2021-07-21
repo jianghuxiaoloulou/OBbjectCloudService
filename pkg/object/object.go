@@ -2,7 +2,6 @@ package object
 
 import (
 	"WowjoyProject/ObjectCloudService/global"
-	"WowjoyProject/ObjectCloudService/internal/model"
 	"WowjoyProject/ObjectCloudService/pkg/errcode"
 	"WowjoyProject/ObjectCloudService/pkg/general"
 	"bytes"
@@ -12,7 +11,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 )
 
@@ -52,21 +50,20 @@ func (obj *Object) UploadObject() {
 	params["syncStrategy"] = obj.SyncStrategy
 	params["key"] = obj.Key
 	params["tags"] = tag_string
-	code, _ := UploadFile(obj.InstanceKey, global.ObjectSetting.OBJECT_POST_Upload, params, "file", obj.Path)
-	if code == errcode.SUCCESS {
+	code := UploadFile(obj.InstanceKey, global.ObjectSetting.OBJECT_POST_Upload, params, "file", obj.Path)
+	if code == errcode.Http_Success.Code() {
 		//上传成功更新数据库
 		global.Logger.Info("数据上传成功", obj.InstanceKey)
-		model.UpdateUplaode(obj.InstanceKey, obj.Key, true)
-
+		// model.UpdateUplaode(obj.InstanceKey, obj.Key, true)
 	}
-	if code == errcode.ERROR {
+	if code == errcode.Http_Error.Code() {
 		// 服务错误不做等待服务重启
 		global.Logger.Error("请求错误，等待服务重启")
 	}
-	if code != errcode.SUCCESS && code != errcode.ERROR {
+	if code != errcode.Http_Success.Code() && code != errcode.Http_Error.Code() {
 		// 上传失败更新数据库
 		global.Logger.Info("数据上传失败", obj.InstanceKey)
-		model.UpdateUplaode(obj.InstanceKey, obj.Key, false)
+		// model.UpdateUplaode(obj.InstanceKey, obj.Key, false)
 	}
 }
 
@@ -107,14 +104,14 @@ func (obj *Object) DownObject() {
 	if code != 200 {
 		global.Logger.Error("下载失败：" + obj.Path)
 		global.Logger.Error(resp)
-		model.UpdateDown(obj.InstanceKey, obj.Key, false)
+		// model.UpdateDown(obj.InstanceKey, obj.Key, false)
 		return
 	}
 
 	len, _ := strconv.ParseInt(resp.Header.Get("Content-size"), 10, 64)
 	global.Logger.Info("获取的文件长度：", len)
 
-	CheckPath(obj.Path)
+	general.CheckPath(obj.Path)
 	file, _ := os.Create(obj.Path)
 	defer file.Close()
 
@@ -132,7 +129,7 @@ func (obj *Object) DownObject() {
 			return
 		} else {
 			global.Logger.Info("下载成功：" + obj.Path)
-			model.UpdateDown(obj.InstanceKey, obj.Key, true)
+			// model.UpdateDown(obj.InstanceKey, obj.Key, true)
 		}
 	}
 }
@@ -159,10 +156,10 @@ func (obj *Object) DownObject() {
 // }
 
 // UploadFile 上传文件
-func UploadFile(instance_key int64, url string, params map[string]string, paramName, path string) (int64, error) {
+func UploadFile(instance_key int64, url string, params map[string]string, paramName, path string) int {
 	file, err := os.Open(path)
 	if err != nil {
-		return errcode.ERROR, err
+		return errcode.File_OpenError.Code()
 	}
 	defer file.Close()
 
@@ -175,90 +172,60 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	formFile, err := writer.CreateFormFile(paramName, path)
 	if err != nil {
 		global.Logger.Error("CreateFormFile err :%v, file: %s", err, file)
-		return errcode.ERROR, err
+		return errcode.Http_HeadError.Code()
 	}
 	_, err = io.Copy(formFile, file)
 	if err != nil {
-		return errcode.ERROR, err
+		return errcode.File_CopyError.Code()
 	}
 
-	err = writer.Close()
-	if err != nil {
-		return errcode.ERROR, err
+	writer.Close()
+	if token == "" {
+		// 获取token
+		token = "Bearer " + GetToken()
 	}
 	request, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		global.Logger.Error("NewRequest err: %v, url: %s", err, url)
-		return errcode.ERROR, err
+		return errcode.Http_RequestError.Code()
 	}
+	request.Header.Set("Authorization", token)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	request.Header.Set("Connection", "close")
 	client := &http.Client{}
 	resp, err := client.Do(request)
 	if err != nil {
+		token = ""
 		global.Logger.Error("Do Request got err: %v, req: %v", err, request)
-		return errcode.ERROR, err
+		return errcode.Http_RequestError.Code()
 	}
 	defer resp.Body.Close()
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return errcode.ERROR, err
+		return errcode.Http_RespError.Code()
 	}
 	global.Logger.Info(string(content))
 	var result = make(map[string]interface{})
 	_ = json.Unmarshal(content, &result)
 	code := result["responseCode"]
-	var resultcode int64
+	var resultcode int
 	switch code.(type) {
 	case string:
-		resultcode, _ = strconv.ParseInt(code.(string), 10, 64)
+		resultcode, _ = strconv.Atoi(code.(string))
 	case int64:
-		resultcode = code.(int64)
+		resultcode = code.(int)
 	case float64:
-		resultcode = int64(code.(float64))
+		resultcode = int(code.(float64))
 	}
-	global.Logger.Info("resultcode", resultcode)
-	return resultcode, nil
-}
-
-// 检查文件路径
-func CheckPath(path string) {
-	dir, _ := filepath.Split(path)
-	_, err := os.Stat(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			os.MkdirAll(dir, os.ModePerm)
-		}
-	}
-}
-
-// io.copy()来复制
-// 参数说明：
-// src: 源文件路径
-// dest: 目标文件路径
-// key :值不为空是更新instance表中的localtion_code值
-func CopyFile(src, dest string) (int64, error) {
-	// 判断路径文件夹是否存在，不存在，创建文件夹
-	CheckPath(dest)
-	global.Logger.Info("开始拷贝文件：", src)
-	file1, err := os.Open(src)
-	if err != nil {
-		return 0, err
-	}
-	defer file1.Close()
-	file2, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY, os.ModePerm)
-	if err != nil {
-		return 0, err
-	}
-	defer file2.Close()
-	return io.Copy(file2, file1)
+	global.Logger.Info("resultcode: ", resultcode)
+	return resultcode
 }
 
 func GetToken() string {
 	req, err := http.NewRequest("POST", global.ObjectSetting.TOKEN_URL, nil)
 	if err != nil {
-		global.Logger.Error("NewRequest err: %v, url: %s", err, global.ObjectSetting.TOKEN_URL)
+		global.Logger.Error("Token NewRequest err: %v, url: %s", err, global.ObjectSetting.TOKEN_URL)
 		return ""
 	}
 	req.SetBasicAuth(global.ObjectSetting.TOKEN_Username, global.ObjectSetting.TOKEN_Password)
@@ -285,9 +252,4 @@ func GetToken() string {
 	}
 	global.Logger.Info("token: ", token)
 	return token
-}
-
-func Exist(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil || os.IsExist(err)
 }

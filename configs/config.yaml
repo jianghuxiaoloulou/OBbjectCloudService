@@ -1,5 +1,6 @@
 Server:
-  RunMode: debug
+  # RunMode: debug
+  RunMode: release
   HttpPort: 9000
   ReadTimeout: 60
   WriteTimeout: 60
@@ -12,8 +13,8 @@ General:
   MaxThreads: 100
   MaxTasks: 5
 Database:
-  # DBConn: espacs:espacs@2017@tcp(10.20.32.212:31967)/espacs?charset=utf8
-  DBConn: hrp:asdf@123@tcp(10.110.20.133:30664)/espacs?charset=utf8  
+  DBConn: espacs:espacs@2017@tcp(10.20.32.212:31967)/espacs?charset=utf8
+  # DBConn: hrp:asdf@123@tcp(10.110.20.133:30664)/espacs?charset=utf8  
   DBType: mysql
   MaxIdleConns: 10
   MaxOpenConns: 30
@@ -22,7 +23,7 @@ Object:
   OBJECT_BucketId: c0427a948fa44bb8bba7248092a5f353
   OBJECT_Sync: 0
   OBJECT_GET_Version: http://10.110.18.131:30770/v1/object/versions
-  OBJECT_POST_Upload: http://10.110.18.131:30770/v1/object
+  OBJECT_POST_Upload: https://cloud-gateway.rubikstack.com/cloud-file/v1/object
   OBJECT_GET_Download: https://cloud-gateway.rubikstack.com/cloud-file/v1/object
   OBJECT_DEL_Delete: http://10.110.18.131:30770/v1/Object
   OBJECT_PATH: 47815e51a3864e2e8b659ad968e267d4/pacs/
@@ -30,3 +31,11 @@ Object:
   TOKEN_Password: sec
   TOKEN_URL: https://cloud-woauth2.rubikstack.com/oauth/token?grant_type=client_credentials
   DOWN_Dest_Code: 43
+  DOWN_Dest_Root: \\10.42.1.14\image5\
+  UPLOAD_ROOT: pacs
+  # 更新image表中：dcm_file_upload_status
+  OBJECT_Upload_SUCCESS: 0
+  OBJECT_Upload_ERROR: 10001
+  # 更新instance表中：FileExist
+  OBJECT_Down_SUCCESS: 2
+  OBJECT_Down_ERROR: -2

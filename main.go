@@ -11,7 +11,7 @@ import (
 )
 
 // @title 对象存储系统
-// @version 1.0
+// @version 1.0.0.1
 // @description 对象文件上传下载
 // @termsOfService https://github.com/jianghuxiaoloulou/OBbjectCloudService.git
 func main() {

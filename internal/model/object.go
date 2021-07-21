@@ -6,42 +6,6 @@ import (
 	"strings"
 )
 
-// import (
-// 	"os"
-// 	"path/filepath"
-// )
-
-// // 对象存储
-// // web单文件上传
-// func UploadFile(file string) bool {
-// 	return true
-// }
-
-// // web检查号上传
-// func UploadNumbers(number string) bool {
-// 	return true
-// }
-
-// // web单文件下载
-// func DownFile(file string) string {
-// 	return ""
-// }
-
-// // web检查号下载
-// func DownNumbers(number string) string {
-// 	return ""
-// }
-
-// // web单文件删除
-// func DeleteFile(file string) bool {
-// 	return true
-// }
-
-// // web检查号删除
-// func DeleteNumbers(number string) bool {
-// 	return true
-// }
-
 // // 自动上传文件
 // // 获取需要上传的数据
 // func AutoUploadData(dataChan chan ObjectData) {
@@ -188,14 +152,14 @@ import (
 // }
 
 // 通过检查号获取数据
-func GetObjectData(accessNumber string, actiontype global.ActionType) {
-	sql := `select im.instance_key,im.img_file_name,ins.file_name,stu.ip,stu.s_virtual_dir
+func GetObjectData(accessNumber string, action global.ActionType) {
+	sql := `select im.instance_key,im.img_file_name,im.img_file_name_remote,im.dcm_file_name_remote,ins.file_name,stu.ip,stu.s_virtual_dir
 	from  image im 
 	inner join instance ins on im.instance_key = ins.instance_key
 	inner join study_location stu on ins.location_code = stu.n_station_code
 	inner join study st on st.study_key = ins.study_key
 	where st.accession_number=?;`
-	global.Logger.Debug(sql)
+	// global.Logger.Debug(sql)
 	rows, err := global.DBEngine.Query(sql, accessNumber)
 	if err != nil {
 		global.Logger.Fatal(err)
@@ -204,28 +168,28 @@ func GetObjectData(accessNumber string, actiontype global.ActionType) {
 	defer rows.Close()
 	for rows.Next() {
 		key := KeyData{}
-		_ = rows.Scan(&key.instance_key, &key.imgfile, &key.dcmfile, &key.ip, &key.virpath)
+		_ = rows.Scan(&key.instance_key, &key.imgfile, &key.remoteimgfile, &key.remotedcmfile, &key.dcmfile, &key.ip, &key.virpath)
 		if key.imgfile.String != "" {
-			filefullpath := general.GetFilePath(key.imgfile.String, key.ip.String, key.virpath.String)
-			global.Logger.Info("需要上传的文件名：", filefullpath)
+			file_key, file_path := general.GetFilePath(action, key.imgfile.String, key.remoteimgfile.String, key.ip.String, key.virpath.String)
+			global.Logger.Info(action, " 需要处理的文件名：", file_path)
 			data := global.ObjectData{
 				InstanceKey:  key.instance_key.Int64,
-				Key:          key.imgfile.String,
-				Type:         actiontype,
+				Key:          file_key,
+				Type:         action,
 				SyncStrategy: global.ObjectSetting.OBJECT_Sync,
-				Path:         filefullpath,
+				Path:         file_path,
 			}
 			global.ObjectDataChan <- data
 		}
 		if key.dcmfile.String != "" {
-			filefullpath := general.GetFilePath(key.dcmfile.String, key.ip.String, key.virpath.String)
-			global.Logger.Info("需要上传的文件名：", filefullpath)
+			file_key, file_path := general.GetFilePath(action, key.dcmfile.String, key.remotedcmfile.String, key.ip.String, key.virpath.String)
+			global.Logger.Info(action, " 需要处理的文件名：", file_path)
 			data := global.ObjectData{
 				InstanceKey:  key.instance_key.Int64,
-				Key:          key.dcmfile.String,
-				Type:         actiontype,
+				Key:          file_key,
+				Type:         action,
 				SyncStrategy: global.ObjectSetting.OBJECT_Sync,
-				Path:         filefullpath,
+				Path:         file_path,
 			}
 			global.ObjectDataChan <- data
 		}
@@ -234,41 +198,47 @@ func GetObjectData(accessNumber string, actiontype global.ActionType) {
 
 // 上传数据后更新数据库
 func UpdateUplaode(key int64, file string, value bool) {
+	// 更新image表中 dcm_file_upload_status 和 dcm_file_name_remote
 	// value true 上传成功
 	// value false 上传失败
+	success_code := global.ObjectSetting.OBJECT_Upload_SUCCESS
+	error_code := global.ObjectSetting.OBJECT_Upload_ERROR
 	if value {
 		if strings.Contains(file, ".dcm") {
-			sql := `update image im set im.dcm_file_upload_status=0,im.dcm_file_name_remote=? where im.instance_key=?`
-			global.DBEngine.Exec(sql, file, key)
+			sql := `update image im set im.dcm_file_upload_status=?,im.dcm_file_name_remote=? where im.instance_key=?`
+			global.DBEngine.Exec(sql, success_code, file, key)
 		} else {
-			sql := `update image im set im.img_file_upload_status=0,im.img_file_name_remote=? where im.instance_key=?`
-			global.DBEngine.Exec(sql, file, key)
+			sql := `update image im set im.img_file_upload_status=?,im.img_file_name_remote=? where im.instance_key=?`
+			global.DBEngine.Exec(sql, success_code, file, key)
 		}
 	} else {
 		if strings.Contains(file, ".dcm") {
-			sql := `update image im set im.dcm_file_upload_status=10001 where im.instance_key=? and im.dcm_file_upload_status!=0`
-			global.DBEngine.Exec(sql, key)
+			sql := `update image im set im.dcm_file_upload_status=? where im.instance_key=? and im.dcm_file_upload_status!=?`
+			global.DBEngine.Exec(sql, error_code, key, success_code)
 		} else {
-			sql := `update image im set im.img_file_upload_status=10001 where im.instance_key=? and im.img_file_upload_status!=0`
-			global.DBEngine.Exec(sql, key)
+			sql := `update image im set im.img_file_upload_status=? where im.instance_key=? and im.img_file_upload_status!=?`
+			global.DBEngine.Exec(sql, error_code, key, success_code)
 		}
 	}
 }
 
 // 数据下载成功更新数据库
 func UpdateDown(key int64, file string, value bool) {
+	// 更新表中
 	// value true 上传成功
 	// value false 上传失败
-	code := global.ObjectSetting.DOWN_Dest_Code
+	success_code := global.ObjectSetting.OBJECT_Down_SUCCESS
+	error_code := global.ObjectSetting.OBJECT_Down_ERROR
+	destcode := global.ObjectSetting.DOWN_Dest_Code
 	if value {
 		if strings.Contains(file, ".dcm") {
-			sql := `update instance ins set ins.FileExist = 2,ins.location_code=? where ins.instance_key=?`
-			global.DBEngine.Exec(sql, code, key)
+			sql := `update instance ins set ins.FileExist=?,ins.location_code=? where ins.instance_key=?`
+			global.DBEngine.Exec(sql, success_code, destcode, key)
 		}
 	} else {
 		if strings.Contains(file, ".dcm") {
-			sql := `update instance ins set ins.FileExist = -2 where ins.instance_key=?`
-			global.DBEngine.Exec(sql, key)
+			sql := `update instance ins set ins.FileExist=? where ins.instance_key=?`
+			global.DBEngine.Exec(sql, error_code, key)
 		}
 	}
 }

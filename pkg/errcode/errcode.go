@@ -55,7 +55,7 @@ func (e *Error) WithDetails(details ...string) *Error {
 
 func (e *Error) StatusCode() int {
 	switch e.Code() {
-	case Success.Code():
+	case Http_Success.Code():
 		return http.StatusOK
 	case ServerError.Code():
 		return http.StatusInternalServerError
