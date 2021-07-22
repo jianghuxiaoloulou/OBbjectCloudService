@@ -1,6 +1,6 @@
-Server:
-  # RunMode: debug
-  RunMode: release
+﻿Server:
+  RunMode: debug
+  # RunMode: release
   HttpPort: 9000
   ReadTimeout: 60
   WriteTimeout: 60
@@ -10,8 +10,8 @@ General:
   LogFileExt: .log
   LogMaxSize: 600
   LogMaxAge: 7
-  MaxThreads: 100
-  MaxTasks: 5
+  MaxThreads: 20
+  MaxTasks: 20
 Database:
   DBConn: espacs:espacs@2017@tcp(10.20.32.212:31967)/espacs?charset=utf8
   # DBConn: hrp:asdf@123@tcp(10.110.20.133:30664)/espacs?charset=utf8  
@@ -31,7 +31,7 @@ Object:
   TOKEN_Password: sec
   TOKEN_URL: https://cloud-woauth2.rubikstack.com/oauth/token?grant_type=client_credentials
   DOWN_Dest_Code: 43
-  DOWN_Dest_Root: \\10.42.1.14\image5\
+  DOWN_Dest_Root: D:\work\ZSH\image\
   UPLOAD_ROOT: pacs
   # 更新image表中：dcm_file_upload_status
   OBJECT_Upload_SUCCESS: 0

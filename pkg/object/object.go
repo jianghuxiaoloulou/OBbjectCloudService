@@ -2,6 +2,7 @@ package object
 
 import (
 	"WowjoyProject/ObjectCloudService/global"
+	"WowjoyProject/ObjectCloudService/internal/model"
 	"WowjoyProject/ObjectCloudService/pkg/errcode"
 	"WowjoyProject/ObjectCloudService/pkg/general"
 	"bytes"
@@ -54,7 +55,7 @@ func (obj *Object) UploadObject() {
 	if code == errcode.Http_Success.Code() {
 		//上传成功更新数据库
 		global.Logger.Info("数据上传成功", obj.InstanceKey)
-		// model.UpdateUplaode(obj.InstanceKey, obj.Key, true)
+		model.UpdateUplaode(obj.InstanceKey, obj.Key, true)
 	}
 	if code == errcode.Http_Error.Code() {
 		// 服务错误不做等待服务重启
@@ -63,7 +64,7 @@ func (obj *Object) UploadObject() {
 	if code != errcode.Http_Success.Code() && code != errcode.Http_Error.Code() {
 		// 上传失败更新数据库
 		global.Logger.Info("数据上传失败", obj.InstanceKey)
-		// model.UpdateUplaode(obj.InstanceKey, obj.Key, false)
+		model.UpdateUplaode(obj.InstanceKey, obj.Key, false)
 	}
 }
 
