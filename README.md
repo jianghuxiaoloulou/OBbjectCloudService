@@ -89,3 +89,9 @@ go get -u gopkg.in/gomail.v2
 # 接口限流控制
 go get -u github.com/juju/ratelimit@v1.0.1
 # 统一超时控制
+
+
+## 第二次相同项目提交文件到github
+# git add README.md
+# git commit -m "first commit"
+# git push -u origin master
