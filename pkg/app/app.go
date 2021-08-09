@@ -19,7 +19,11 @@ func (r *Response) ToResponse(data interface{}) {
 	if data == nil {
 		data = gin.H{
 			"code": 200,
+<<<<<<< HEAD
 			"msg":  "请求成功",
+=======
+			"msg":  "操作成功",
+>>>>>>> v2
 		}
 	}
 	r.Ctx.JSON(http.StatusOK, data)

@@ -12,7 +12,7 @@ import (
 // 单文件上传
 func UploadFile(c *gin.Context) {
 	// 成功：
-	app.NewResponse(c).ToResponse("")
+	app.NewResponse(c).ToResponse(nil)
 	// 失败：
 	app.NewResponse(c).ToErrorResponse(errcode.ServerError)
 }
@@ -23,9 +23,11 @@ func UploadNumbers(c *gin.Context) {
 	global.Logger.Info("需要上传的检查号是：", id)
 	if id != "" {
 		// 成功：
-		app.NewResponse(c).ToResponse("")
+		app.NewResponse(c).ToResponse(nil)
 		// 获取上传任务：
 		model.GetObjectData(id, global.UPLOAD)
+		// test
+		// model.TestUploadeData(global.UPLOAD)
 	} else {
 		// 失败：
 		app.NewResponse(c).ToErrorResponse(errcode.ServerError)
@@ -35,7 +37,7 @@ func UploadNumbers(c *gin.Context) {
 // 单文件下载
 func DownFile(c *gin.Context) {
 	// 成功：
-	app.NewResponse(c).ToResponse("")
+	app.NewResponse(c).ToResponse(nil)
 	// 失败：
 	app.NewResponse(c).ToErrorResponse(errcode.ServerError)
 }
@@ -46,9 +48,12 @@ func DownNumbers(c *gin.Context) {
 	global.Logger.Info("需要下载的检查号是：", id)
 	if id != "" {
 		// 成功：
-		app.NewResponse(c).ToResponse("")
+		app.NewResponse(c).ToResponse(nil)
 		// 获取下载任务：
 		model.GetObjectData(id, global.DOWNLOAD)
+
+		// test
+		//model.TestDownData(global.DOWNLOAD)
 	} else {
 		// 失败：
 		app.NewResponse(c).ToErrorResponse(errcode.ServerError)
@@ -58,7 +63,7 @@ func DownNumbers(c *gin.Context) {
 // 单文件删除
 func DeleteFile(c *gin.Context) {
 	// 成功：
-	app.NewResponse(c).ToResponse("")
+	app.NewResponse(c).ToResponse(nil)
 	// 失败：
 	app.NewResponse(c).ToErrorResponse(errcode.ServerError)
 }
@@ -71,7 +76,7 @@ func DeleteNumbers(c *gin.Context) {
 		// 获取下载任务：
 		model.GetObjectData(id, global.DELETE)
 		// 成功：
-		app.NewResponse(c).ToResponse("")
+		app.NewResponse(c).ToResponse(nil)
 	} else {
 		// 失败：
 		app.NewResponse(c).ToErrorResponse(errcode.ServerError)

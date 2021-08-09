@@ -28,6 +28,7 @@ type DatabaseSettingS struct {
 
 type ObjectSettingS struct {
 	OBJECT_BucketId       string
+	OBJECT_MDID           string
 	OBJECT_Sync           string
 	OBJECT_GET_Version    string
 	OBJECT_POST_Upload    string

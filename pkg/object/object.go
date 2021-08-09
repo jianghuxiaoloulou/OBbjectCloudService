@@ -20,6 +20,7 @@ var token string
 // 封装对象相关操作
 type Object struct {
 	InstanceKey  int64
+	Mdid         string
 	BucketId     string
 	SyncStrategy string
 	Key          string
@@ -38,6 +39,7 @@ func NewObject(data global.ObjectData) *Object {
 		Key:          data.Key,
 		Tags:         tags,
 		Path:         data.Path,
+		Mdid:         global.ObjectSetting.OBJECT_MDID,
 	}
 }
 
@@ -47,11 +49,20 @@ func (obj *Object) UploadObject() {
 	tag_json, _ := json.Marshal(obj.Tags)
 	tag_string := string(tag_json)
 	params := make(map[string]string)
-	params["bucketId"] = obj.BucketId
+	params["resId"] = obj.BucketId
 	params["syncStrategy"] = obj.SyncStrategy
 	params["key"] = obj.Key
 	params["tags"] = tag_string
-	code := UploadFile(obj.InstanceKey, global.ObjectSetting.OBJECT_POST_Upload, params, "file", obj.Path)
+	params["mdid"] = obj.Mdid
+	url := global.ObjectSetting.OBJECT_POST_Upload
+	url += "//"
+	url += obj.Mdid
+	url += "//"
+	url += obj.BucketId
+	url += "//"
+	url += obj.Key
+	global.Logger.Debug("操作的URL: ", url)
+	code := UploadFile(obj.InstanceKey, url, params, "file", obj.Path)
 	if code == errcode.Http_Success.Code() {
 		//上传成功更新数据库
 		global.Logger.Info("数据上传成功", obj.InstanceKey)
@@ -77,9 +88,18 @@ func (obj *Object) DownObject() {
 
 	global.Logger.Info("开始下载对象：", *obj)
 	params := make(map[string]string)
-	params["bucketId"] = obj.BucketId
+	params["resId"] = obj.BucketId
 	params["key"] = obj.Key
-	req, err := http.NewRequest(http.MethodGet, global.ObjectSetting.OBJECT_GET_Download, nil)
+	params["mdid"] = obj.Mdid
+	url := global.ObjectSetting.OBJECT_GET_Download
+	url += "//"
+	url += obj.Mdid
+	url += "//"
+	url += obj.BucketId
+	url += "//"
+	url += obj.Key
+	global.Logger.Debug("操作的URL: ", url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		global.Logger.Error("文件下载失败", err, obj.Key)
 		return
@@ -105,7 +125,7 @@ func (obj *Object) DownObject() {
 	if code != 200 {
 		global.Logger.Error("下载失败：" + obj.Path)
 		global.Logger.Error(resp)
-		// model.UpdateDown(obj.InstanceKey, obj.Key, false)
+		model.UpdateDown(obj.InstanceKey, obj.Key, false)
 		return
 	}
 
@@ -120,17 +140,21 @@ func (obj *Object) DownObject() {
 	size := general.GetFileSize(obj.Path)
 	global.Logger.Info("下载文件获取的长度：", size)
 	if err != nil {
-		global.Logger.Error("文件拷贝失败：" + obj.Path)
+		global.Logger.Error("下载失败：文件拷贝失败：" + obj.Path)
+		file.Close()
 		os.Remove(obj.Path)
+		model.UpdateDown(obj.InstanceKey, obj.Key, false)
 		return
 	} else {
 		if size != len {
-			global.Logger.Error("保存的文件大小错误：" + obj.Path)
+			global.Logger.Error("下载失败：保存的文件大小错误：" + obj.Path)
+			file.Close()
 			os.Remove(obj.Path)
+			model.UpdateDown(obj.InstanceKey, obj.Key, false)
 			return
 		} else {
 			global.Logger.Info("下载成功：" + obj.Path)
-			// model.UpdateDown(obj.InstanceKey, obj.Key, true)
+			model.UpdateDown(obj.InstanceKey, obj.Key, true)
 		}
 	}
 }
@@ -210,7 +234,7 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	var result = make(map[string]interface{})
 	_ = json.Unmarshal(content, &result)
 	code := result["responseCode"]
-	var resultcode int
+	var resultcode = -1
 	switch code.(type) {
 	case string:
 		resultcode, _ = strconv.Atoi(code.(string))
