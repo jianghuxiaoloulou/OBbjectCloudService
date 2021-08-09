@@ -17,7 +17,10 @@ func NewResponse(ctx *gin.Context) *Response {
 
 func (r *Response) ToResponse(data interface{}) {
 	if data == nil {
-		data = gin.H{}
+		data = gin.H{
+			"code": 200,
+			"msg":  "操作成功",
+		}
 	}
 	r.Ctx.JSON(http.StatusOK, data)
 }

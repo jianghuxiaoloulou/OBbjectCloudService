@@ -147,9 +147,33 @@ import (
 // 	// 			}
 // 	// 		}
 // 	// 	}
-// 	// 	rows.Close()
+// 	// 	rows.Clos2e()
 // 	// }
 // }
+
+// test upload
+func TestUploadeData(action global.ActionType) {
+	data := global.ObjectData{
+		InstanceKey:  123456,
+		Key:          "pacs/ct56/2020/05/06/CT/CT.ed6b4e41c25c624f14f85410ba506afe.dcm",
+		Type:         action,
+		SyncStrategy: global.ObjectSetting.OBJECT_Sync,
+		Path:         "W:\\image\\1234567.dcm",
+	}
+	global.ObjectDataChan <- data
+}
+
+// test Down
+func TestDownData(action global.ActionType) {
+	data := global.ObjectData{
+		InstanceKey:  123456,
+		Key:          "pacs/ct56/2020/05/06/CT/CT.ed6b4e41c25c624f14f85410ba506afe.dcm",
+		Type:         action,
+		SyncStrategy: global.ObjectSetting.OBJECT_Sync,
+		Path:         "D:\\image\\Down\\CT.ed6b4e41c25c624f14f85410ba506afe.dcm",
+	}
+	global.ObjectDataChan <- data
+}
 
 // 通过检查号获取数据
 func GetObjectData(accessNumber string, action global.ActionType) {

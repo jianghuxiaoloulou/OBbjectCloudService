@@ -13,26 +13,46 @@ General:
   MaxThreads: 20
   MaxTasks: 20
 Database:
-  DBConn: espacs:espacs@2017@tcp(10.20.32.212:31967)/espacs?charset=utf8
+  # 树兰安吉医院：espacs:Espacs@2020@tcp(172.16.0.7:3306)/espacs?charset=utf8
+  # 杭州树兰医院：espacs:espacs@2017@tcp(10.20.32.212:31967)/espacs?charset=utf8
+  DBConn: espacs:Espacs@2020@tcp(172.16.0.7:3306)/espacs?charset=utf8
   # DBConn: hrp:asdf@123@tcp(10.110.20.133:30664)/espacs?charset=utf8  
   DBType: mysql
   MaxIdleConns: 10
   MaxOpenConns: 30
 Object:
   # 对象存储相关操作 pacs
-  OBJECT_BucketId: c0427a948fa44bb8bba7248092a5f353
+  # 桶ID AWS :c0427a948fa44bb8bba7248092a5f353
+  # 桶ID 树兰安吉电信云：d467e502a1734e2199e0f7969730dca8
+  OBJECT_BucketId: d467e502a1734e2199e0f7969730dca8
+  # 医院id 可以传 'local' 会自动获取当前医院 mdid
+  # 树兰安吉医院ID：84e71f389a4b4fe5ad79261b4d56262e
+  OBJECT_MDID: local
   OBJECT_Sync: 0
   OBJECT_GET_Version: http://10.110.18.131:30770/v1/object/versions
-  OBJECT_POST_Upload: https://cloud-gateway.rubikstack.com/cloud-file/v1/object
-  OBJECT_GET_Download: https://cloud-gateway.rubikstack.com/cloud-file/v1/object
-  OBJECT_DEL_Delete: http://10.110.18.131:30770/v1/Object
+  # https://gateway-aj.shulan.com  => http://172.16.0.16:31003/
+  # https://woauth2-aj.shulan.com  => http://172.16.0.16:30582/
+  # 上传：AWS: https://cloud-gateway.rubikstack.com/cloud-file/v1/object
+  # 上传：树兰安吉电信云： https://gateway-aj.shulan.com/cloud-file/v1/object
+  OBJECT_POST_Upload: http://172.16.0.16:31003/cloud-file/v1/object
+  # 下载： AWS: https://cloud-gateway.rubikstack.com/cloud-file/v1/object
+  # 下载： 树兰安吉电信云： https://gateway-aj.shulan.com/cloud-file/v1/object
+  OBJECT_GET_Download: http://172.16.0.16:31003/cloud-file/v1/object
+  # 删除：AWS: 
+  # 删除： 树兰安吉电信云：https://gateway-aj.shulan.com/cloud-file/v1/object
+  OBJECT_DEL_Delete: http://172.16.0.16:31003/v1/Object
   OBJECT_PATH: 47815e51a3864e2e8b659ad968e267d4/pacs/
   TOKEN_Username: cli
   TOKEN_Password: sec
-  TOKEN_URL: https://cloud-woauth2.rubikstack.com/oauth/token?grant_type=client_credentials
+  # token AWS: https://cloud-woauth2.rubikstack.com/oauth/token?grant_type=client_credentials
+  # token 树兰安吉电信云：https://woauth2-aj.shulan.com/oauth/token?grant_type=client_credentials
+  # 获取token的username: cli
+  # 获取token的password: sec
+  TOKEN_URL: http://172.16.0.16:30582/oauth/token?grant_type=client_credentials
   DOWN_Dest_Code: 43
   DOWN_Dest_Root: D:\work\ZSH\image\
-  UPLOAD_ROOT: pacs
+  # 上传根路径，用来区分每家医院的前缀
+  UPLOAD_ROOT: anji
   # 更新image表中：dcm_file_upload_status
   OBJECT_Upload_SUCCESS: 0
   OBJECT_Upload_ERROR: 10001
