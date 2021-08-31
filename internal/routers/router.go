@@ -22,10 +22,14 @@ func NewRouter() *gin.Engine {
 		apiv1.POST("/Object/File/:File", v1.UploadFile)
 		// 检查号上传
 		apiv1.POST("/Object/AccessNumber/:AccessNumber", v1.UploadNumbers)
+		// 全量上传
+		apiv1.POST("/Object/All", v1.UploadALL)
 		// 单文件下载
 		apiv1.GET("/Object/File/:File", v1.DownFile)
 		// 检查号下载
 		apiv1.GET("/Object/AccessNumber/:AccessNumber", v1.DownNumbers)
+		// 全量下载
+		apiv1.GET("/Object/All", v1.DownALL)
 		// 单文件删除
 		apiv1.DELETE("/Object/File/:File", v1.DeleteFile)
 		// 检查号删除

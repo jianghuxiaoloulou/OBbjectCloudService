@@ -15,17 +15,16 @@ import (
 	"strconv"
 )
 
-var token string
+//var token string
 
 // 封装对象相关操作
 type Object struct {
-	InstanceKey  int64
-	Mdid         string
-	BucketId     string
-	SyncStrategy string
-	Key          string
-	Tags         map[string]string
-	Path         string
+	InstanceKey int64
+	ResId       string
+	Key         string
+	Tags        map[string]string
+	Path        string
+	Count       int
 }
 
 func NewObject(data global.ObjectData) *Object {
@@ -33,13 +32,12 @@ func NewObject(data global.ObjectData) *Object {
 	tags["tag1"] = "test"
 	tags["tag2"] = "shulan"
 	return &Object{
-		InstanceKey:  data.InstanceKey,
-		BucketId:     global.ObjectSetting.OBJECT_BucketId,
-		SyncStrategy: data.SyncStrategy,
-		Key:          data.Key,
-		Tags:         tags,
-		Path:         data.Path,
-		Mdid:         global.ObjectSetting.OBJECT_MDID,
+		InstanceKey: data.InstanceKey,
+		ResId:       global.ObjectSetting.OBJECT_ResId,
+		Key:         data.Key,
+		Tags:        tags,
+		Path:        data.Path,
+		Count:       data.Count,
 	}
 }
 
@@ -49,53 +47,44 @@ func (obj *Object) UploadObject() {
 	tag_json, _ := json.Marshal(obj.Tags)
 	tag_string := string(tag_json)
 	params := make(map[string]string)
-	params["resId"] = obj.BucketId
-	params["syncStrategy"] = obj.SyncStrategy
+	params["resId"] = obj.ResId
 	params["key"] = obj.Key
 	params["tags"] = tag_string
-	params["mdid"] = obj.Mdid
 	url := global.ObjectSetting.OBJECT_POST_Upload
 	url += "//"
-	url += obj.Mdid
-	url += "//"
-	url += obj.BucketId
+	url += obj.ResId
 	url += "//"
 	url += obj.Key
 	global.Logger.Debug("操作的URL: ", url)
 	code := UploadFile(obj.InstanceKey, url, params, "file", obj.Path)
-	if code == errcode.Http_Success.Code() {
+	if code == "00000" {
 		//上传成功更新数据库
 		global.Logger.Info("数据上传成功", obj.InstanceKey)
 		model.UpdateUplaode(obj.InstanceKey, obj.Key, true)
-	}
-	if code == errcode.Http_Error.Code() {
-		// 服务错误不做等待服务重启
-		global.Logger.Error("请求错误，等待服务重启")
-	}
-	if code != errcode.Http_Success.Code() && code != errcode.Http_Error.Code() {
-		// 上传失败更新数据库
+	} else {
 		global.Logger.Info("数据上传失败", obj.InstanceKey)
-		model.UpdateUplaode(obj.InstanceKey, obj.Key, false)
+		// 上传失败时先补偿操作，补偿操作失败后才更新数据库
+		if !ReDo(obj, global.UPLOAD) {
+			global.Logger.Info("数据补偿失败", obj.InstanceKey)
+			// 上传失败更新数据库
+			model.UpdateUplaode(obj.InstanceKey, obj.Key, false)
+		}
 	}
 }
 
 // 下载对象[GET]
 func (obj *Object) DownObject() {
-	if token == "" {
-		// 获取token
-		token = "Bearer " + GetToken()
-	}
-
+	// if token == "" {
+	// 	// 获取token
+	// 	token = "Bearer " + GetToken()
+	// }
 	global.Logger.Info("开始下载对象：", *obj)
 	params := make(map[string]string)
-	params["resId"] = obj.BucketId
+	params["resId"] = obj.ResId
 	params["key"] = obj.Key
-	params["mdid"] = obj.Mdid
 	url := global.ObjectSetting.OBJECT_GET_Download
 	url += "//"
-	url += obj.Mdid
-	url += "//"
-	url += obj.BucketId
+	url += obj.ResId
 	url += "//"
 	url += obj.Key
 	global.Logger.Debug("操作的URL: ", url)
@@ -104,8 +93,10 @@ func (obj *Object) DownObject() {
 		global.Logger.Error("文件下载失败", err, obj.Key)
 		return
 	}
-	req.Header.Set("Authorization", token)
+	// req.Header.Set("Authorization", token)
 	// add params
+	// 设置AK
+	req.Header.Set("accessKey", global.ObjectSetting.OBJECT_AK)
 	que := req.URL.Query()
 	if params != nil {
 		for key, val := range params {
@@ -116,7 +107,7 @@ func (obj *Object) DownObject() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		token = ""
+		// token = ""
 		global.Logger.Error(err)
 		return
 	}
@@ -125,7 +116,12 @@ func (obj *Object) DownObject() {
 	if code != 200 {
 		global.Logger.Error("下载失败：" + obj.Path)
 		global.Logger.Error(resp)
-		model.UpdateDown(obj.InstanceKey, obj.Key, false)
+		// 下载失败时先补偿操作，补偿操作失败后才更新数据库
+		if !ReDo(obj, global.DOWNLOAD) {
+			global.Logger.Info("数据补偿失败", obj.InstanceKey)
+			// 下载失败更新数据库
+			model.UpdateDown(obj.InstanceKey, obj.Key, false)
+		}
 		return
 	}
 
@@ -143,14 +139,24 @@ func (obj *Object) DownObject() {
 		global.Logger.Error("下载失败：文件拷贝失败：" + obj.Path)
 		file.Close()
 		os.Remove(obj.Path)
-		model.UpdateDown(obj.InstanceKey, obj.Key, false)
+		// 下载失败时先补偿操作，补偿操作失败后才更新数据库
+		if !ReDo(obj, global.DOWNLOAD) {
+			global.Logger.Info("数据补偿失败", obj.InstanceKey)
+			// 下载失败更新数据库
+			model.UpdateDown(obj.InstanceKey, obj.Key, false)
+		}
 		return
 	} else {
 		if size != len {
 			global.Logger.Error("下载失败：保存的文件大小错误：" + obj.Path)
 			file.Close()
 			os.Remove(obj.Path)
-			model.UpdateDown(obj.InstanceKey, obj.Key, false)
+			// 下载失败时先补偿操作，补偿操作失败后才更新数据库
+			if !ReDo(obj, global.DOWNLOAD) {
+				global.Logger.Info("数据补偿失败", obj.InstanceKey)
+				// 下载失败更新数据库
+				model.UpdateDown(obj.InstanceKey, obj.Key, false)
+			}
 			return
 		} else {
 			global.Logger.Info("下载成功：" + obj.Path)
@@ -181,10 +187,10 @@ func (obj *Object) DownObject() {
 // }
 
 // UploadFile 上传文件
-func UploadFile(instance_key int64, url string, params map[string]string, paramName, path string) int {
+func UploadFile(instance_key int64, url string, params map[string]string, paramName, path string) string {
 	file, err := os.Open(path)
 	if err != nil {
-		return errcode.File_OpenError.Code()
+		return errcode.File_OpenError.Msg()
 	}
 	defer file.Close()
 
@@ -197,52 +203,46 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	formFile, err := writer.CreateFormFile(paramName, path)
 	if err != nil {
 		global.Logger.Error("CreateFormFile err :%v, file: %s", err, file)
-		return errcode.Http_HeadError.Code()
+		return errcode.Http_HeadError.Msg()
 	}
 	_, err = io.Copy(formFile, file)
 	if err != nil {
-		return errcode.File_CopyError.Code()
+		return errcode.File_CopyError.Msg()
 	}
 
 	writer.Close()
-	if token == "" {
-		// 获取token
-		token = "Bearer " + GetToken()
-	}
+	// if token == "" {
+	// 	// 获取token
+	// 	token = "Bearer " + GetToken()
+	// }
 	request, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		global.Logger.Error("NewRequest err: %v, url: %s", err, url)
-		return errcode.Http_RequestError.Code()
+		return errcode.Http_RequestError.Msg()
 	}
-	request.Header.Set("Authorization", token)
+	// request.Header.Set("Authorization", token)
+	// 设置AK
+	request.Header.Set("accessKey", global.ObjectSetting.OBJECT_AK)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	request.Header.Set("Connection", "close")
 	client := &http.Client{}
 	resp, err := client.Do(request)
 	if err != nil {
-		token = ""
+		// token = ""
 		global.Logger.Error("Do Request got err: %v, req: %v", err, request)
-		return errcode.Http_RequestError.Code()
+		return errcode.Http_RequestError.Msg()
 	}
 	defer resp.Body.Close()
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return errcode.Http_RespError.Code()
+		return errcode.Http_RespError.Msg()
 	}
 	global.Logger.Info(string(content))
 	var result = make(map[string]interface{})
 	_ = json.Unmarshal(content, &result)
-	code := result["responseCode"]
-	var resultcode = -1
-	switch code.(type) {
-	case string:
-		resultcode, _ = strconv.Atoi(code.(string))
-	case int64:
-		resultcode = code.(int)
-	case float64:
-		resultcode = int(code.(float64))
-	}
+	code := result["code"]
+	resultcode := code.(string)
 	global.Logger.Info("resultcode: ", resultcode)
 	return resultcode
 }
@@ -277,4 +277,22 @@ func GetToken() string {
 	}
 	global.Logger.Info("token: ", token)
 	return token
+}
+
+// 补偿操作
+func ReDo(obj *Object, action global.ActionType) bool {
+	global.Logger.Info("开始补偿操作：", obj.InstanceKey)
+	if obj.Count < global.ObjectSetting.OBJECT_Count {
+		obj.Count += 1
+		data := global.ObjectData{
+			InstanceKey: obj.InstanceKey,
+			Key:         obj.Key,
+			Type:        action,
+			Path:        obj.Path,
+			Count:       obj.Count,
+		}
+		global.ObjectDataChan <- data
+		return true
+	}
+	return false
 }
