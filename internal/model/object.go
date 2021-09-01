@@ -132,7 +132,7 @@ func AutoUploadObjectData() {
 		from  image im 
 		inner join instance ins on im.instance_key = ins.instance_key
 		inner join study_location stu on ins.location_code = stu.n_station_code
-		where im.dcm_file_upload_status=? order by im.instance_key DESC limit ?;`
+		where im.dcm_file_upload_status=? order by im.instance_key ASC limit ?;`
 		// global.Logger.Debug(sql)
 		rows, err := global.DBEngine.Query(sql, global.ObjectSetting.OBJECT_Upload_Flag, global.ObjectSetting.OBJECT_TASK)
 		if err != nil {
@@ -171,14 +171,14 @@ func AutoUploadObjectData() {
 	}
 }
 
-// 自动下载数据
+// 自动下载数据 // 文件上传成功，并且不存在
 func AutoDownObjectData() {
-	global.Logger.Info("******开始自动上传数据******")
+	global.Logger.Info("******开始自动下载数据******")
 	for global.AutoDowndFlag {
-		sql := `select im.instance_key,im.img_file_name,im.img_file_name_remote,im.dcm_file_name_remote,ins.file_name,stu.ip,stu.s_virtual_dir
+		sql := `select im.instance_key,im.img_file_name,im.img_file_name_remote,im.dcm_file_name_remote,ins.file_name
 		from  image im 
 		inner join instance ins on im.instance_key = ins.instance_key
-		where ins.FileExist=? order by im.instance_key DESC limit ?;`
+		where im.dcm_file_upload_status= 0 and ins.FileExist=? limit ?;`
 		// global.Logger.Debug(sql)
 		rows, err := global.DBEngine.Query(sql, global.ObjectSetting.OBJECT_Down_Flag, global.ObjectSetting.OBJECT_TASK)
 		if err != nil {
@@ -188,9 +188,9 @@ func AutoDownObjectData() {
 		defer rows.Close()
 		for rows.Next() {
 			key := KeyData{}
-			_ = rows.Scan(&key.instance_key, &key.imgfile, &key.remoteimgfile, &key.remotedcmfile, &key.dcmfile, &key.ip, &key.virpath)
+			_ = rows.Scan(&key.instance_key, &key.imgfile, &key.remoteimgfile, &key.remotedcmfile, &key.dcmfile)
 			if key.imgfile.String != "" {
-				file_key, file_path := general.GetFilePath(global.DOWNLOAD, key.imgfile.String, key.remoteimgfile.String, key.ip.String, key.virpath.String)
+				file_key, file_path := general.GetFilePath(global.DOWNLOAD, key.imgfile.String, key.remoteimgfile.String, "", "")
 				global.Logger.Info(global.DOWNLOAD, " 需要处理的文件名：", file_path)
 				data := global.ObjectData{
 					InstanceKey: key.instance_key.Int64,

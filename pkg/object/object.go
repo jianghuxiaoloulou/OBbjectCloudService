@@ -47,8 +47,8 @@ func (obj *Object) UploadObject() {
 	tag_json, _ := json.Marshal(obj.Tags)
 	tag_string := string(tag_json)
 	params := make(map[string]string)
-	params["resId"] = obj.ResId
-	params["key"] = obj.Key
+	// params["resId"] = obj.ResId
+	// params["key"] = obj.Key
 	params["tags"] = tag_string
 	url := global.ObjectSetting.OBJECT_POST_Upload
 	url += "//"
@@ -202,7 +202,7 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	}
 	formFile, err := writer.CreateFormFile(paramName, path)
 	if err != nil {
-		global.Logger.Error("CreateFormFile err :%v, file: %s", err, file)
+		global.Logger.Error("CreateFormFile err :", err, file)
 		return errcode.Http_HeadError.Msg()
 	}
 	_, err = io.Copy(formFile, file)
@@ -217,7 +217,7 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	// }
 	request, err := http.NewRequest("POST", url, body)
 	if err != nil {
-		global.Logger.Error("NewRequest err: %v, url: %s", err, url)
+		global.Logger.Error("NewRequest err: ", err, url)
 		return errcode.Http_RequestError.Msg()
 	}
 	// request.Header.Set("Authorization", token)
@@ -225,11 +225,16 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	request.Header.Set("accessKey", global.ObjectSetting.OBJECT_AK)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	request.Header.Set("Connection", "close")
-	client := &http.Client{}
+	transport := http.Transport{
+		DisableKeepAlives: true,
+	}
+	client := &http.Client{
+		Transport: &transport,
+	}
 	resp, err := client.Do(request)
 	if err != nil {
 		// token = ""
-		global.Logger.Error("Do Request got err: %v, req: %v", err, request)
+		global.Logger.Error("Do Request got err: ", err, request)
 		return errcode.Http_RequestError.Msg()
 	}
 	defer resp.Body.Close()
@@ -250,7 +255,7 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 func GetToken() string {
 	req, err := http.NewRequest("POST", global.ObjectSetting.TOKEN_URL, nil)
 	if err != nil {
-		global.Logger.Error("Token NewRequest err: %v, url: %s", err, global.ObjectSetting.TOKEN_URL)
+		global.Logger.Error("Token NewRequest err:", err, global.ObjectSetting.TOKEN_URL)
 		return ""
 	}
 	req.SetBasicAuth(global.ObjectSetting.TOKEN_Username, global.ObjectSetting.TOKEN_Password)
@@ -258,7 +263,7 @@ func GetToken() string {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		global.Logger.Error("Do Request got err: %v, req: %v", err, req)
+		global.Logger.Error("Do Request got err: ", err, req)
 		return ""
 	}
 	defer resp.Body.Close()
