@@ -132,9 +132,9 @@ func AutoUploadObjectData() {
 		from  image im 
 		inner join instance ins on im.instance_key = ins.instance_key
 		inner join study_location stu on ins.location_code = stu.n_station_code
-		where im.dcm_file_upload_status=? order by im.instance_key ASC limit ?;`
+		where im.dcm_file_upload_status=? or im.img_file_upload_status=? order by im.instance_key ASC limit ?;`
 		// global.Logger.Debug(sql)
-		rows, err := global.DBEngine.Query(sql, global.ObjectSetting.OBJECT_Upload_Flag, global.ObjectSetting.OBJECT_TASK)
+		rows, err := global.DBEngine.Query(sql, global.ObjectSetting.OBJECT_Upload_Flag, global.ObjectSetting.OBJECT_Upload_Flag, global.ObjectSetting.OBJECT_TASK)
 		if err != nil {
 			global.Logger.Fatal(err)
 			return

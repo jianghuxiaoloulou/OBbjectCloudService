@@ -6,6 +6,7 @@ import (
 	"WowjoyProject/ObjectCloudService/pkg/object"
 	"WowjoyProject/ObjectCloudService/pkg/workpattern"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,8 +30,13 @@ func main() {
 		for {
 			select {
 			case data := <-global.ObjectDataChan:
-				sc := &Dosomething{key: data}
-				wokerPool.JobQueue <- sc
+				if global.WaitFlag {
+					time.Sleep(time.Second)
+					global.WaitFlag = false
+				} else {
+					sc := &Dosomething{key: data}
+					wokerPool.JobQueue <- sc
+				}
 			}
 		}
 	}()

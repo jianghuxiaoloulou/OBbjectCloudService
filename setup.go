@@ -6,6 +6,7 @@ import (
 	"WowjoyProject/ObjectCloudService/pkg/logger"
 	"WowjoyProject/ObjectCloudService/pkg/setting"
 	"log"
+	"net/http"
 	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -13,6 +14,7 @@ import (
 
 func init() {
 	readSetup()
+	GetHttpClient()
 }
 
 func setupSetting() error {
@@ -74,5 +76,14 @@ func readSetup() {
 	err = setupDBEngine()
 	if err != nil {
 		log.Fatalf("init.setupDBEngine err: %v", err)
+	}
+}
+
+func GetHttpClient() {
+	transport := http.Transport{
+		DisableKeepAlives: true,
+	}
+	global.HttpClient = &http.Client{
+		Transport: &transport,
 	}
 }

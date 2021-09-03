@@ -30,7 +30,7 @@ type Object struct {
 func NewObject(data global.ObjectData) *Object {
 	var tags = make(map[string]string)
 	tags["tag1"] = "test"
-	tags["tag2"] = "shulan"
+	tags["tag2"] = "anji"
 	return &Object{
 		InstanceKey: data.InstanceKey,
 		ResId:       global.ObjectSetting.OBJECT_ResId,
@@ -78,89 +78,19 @@ func (obj *Object) DownObject() {
 	// 	// 获取token
 	// 	token = "Bearer " + GetToken()
 	// }
+	// 请求处理太快，http资源没来得及关闭
+	// time.Sleep(50 * time.Millisecond)
 	global.Logger.Info("开始下载对象：", *obj)
-	params := make(map[string]string)
-	params["resId"] = obj.ResId
-	params["key"] = obj.Key
-	url := global.ObjectSetting.OBJECT_GET_Download
-	url += "//"
-	url += obj.ResId
-	url += "//"
-	url += obj.Key
-	global.Logger.Debug("操作的URL: ", url)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		global.Logger.Error("文件下载失败", err, obj.Key)
-		return
-	}
-	// req.Header.Set("Authorization", token)
-	// add params
-	// 设置AK
-	req.Header.Set("accessKey", global.ObjectSetting.OBJECT_AK)
-	que := req.URL.Query()
-	if params != nil {
-		for key, val := range params {
-			que.Add(key, val)
-		}
-		req.URL.RawQuery = que.Encode()
-	}
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		// token = ""
-		global.Logger.Error(err)
-		return
-	}
-	defer resp.Body.Close()
-	code := resp.StatusCode
-	if code != 200 {
-		global.Logger.Error("下载失败：" + obj.Path)
-		global.Logger.Error(resp)
-		// 下载失败时先补偿操作，补偿操作失败后才更新数据库
-		if !ReDo(obj, global.DOWNLOAD) {
-			global.Logger.Info("数据补偿失败", obj.InstanceKey)
-			// 下载失败更新数据库
-			model.UpdateDown(obj.InstanceKey, obj.Key, false)
-		}
-		return
-	}
-
-	len, _ := strconv.ParseInt(resp.Header.Get("Content-size"), 10, 64)
-	global.Logger.Info("获取的文件长度：", len)
-
-	general.CheckPath(obj.Path)
-	file, _ := os.Create(obj.Path)
-	defer file.Close()
-
-	_, err = io.Copy(file, resp.Body)
-	size := general.GetFileSize(obj.Path)
-	global.Logger.Info("下载文件获取的长度：", size)
-	if err != nil {
-		global.Logger.Error("下载失败：文件拷贝失败：" + obj.Path)
-		file.Close()
-		os.Remove(obj.Path)
-		// 下载失败时先补偿操作，补偿操作失败后才更新数据库
-		if !ReDo(obj, global.DOWNLOAD) {
-			global.Logger.Info("数据补偿失败", obj.InstanceKey)
-			// 下载失败更新数据库
-			model.UpdateDown(obj.InstanceKey, obj.Key, false)
-		}
-		return
+	flag := DownFile(obj)
+	if flag {
+		global.Logger.Info("下载成功：" + obj.Path)
+		model.UpdateDown(obj.InstanceKey, obj.Key, true)
 	} else {
-		if size != len {
-			global.Logger.Error("下载失败：保存的文件大小错误：" + obj.Path)
-			file.Close()
-			os.Remove(obj.Path)
-			// 下载失败时先补偿操作，补偿操作失败后才更新数据库
-			if !ReDo(obj, global.DOWNLOAD) {
-				global.Logger.Info("数据补偿失败", obj.InstanceKey)
-				// 下载失败更新数据库
-				model.UpdateDown(obj.InstanceKey, obj.Key, false)
-			}
-			return
-		} else {
-			global.Logger.Info("下载成功：" + obj.Path)
-			model.UpdateDown(obj.InstanceKey, obj.Key, true)
+		// 下载失败时先补偿操作，补偿操作失败后才更新数据库
+		if !ReDo(obj, global.DOWNLOAD) {
+			global.Logger.Info("数据补偿失败", obj.InstanceKey)
+			// 下载失败更新数据库
+			// model.UpdateDown(obj.InstanceKey, obj.Key, false)
 		}
 	}
 }
@@ -234,7 +164,8 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	resp, err := client.Do(request)
 	if err != nil {
 		// token = ""
-		global.Logger.Error("Do Request got err: ", err, request)
+		global.Logger.Error("Do Request got err: ", err)
+		global.WaitFlag = true
 		return errcode.Http_RequestError.Msg()
 	}
 	defer resp.Body.Close()
@@ -300,4 +231,74 @@ func ReDo(obj *Object, action global.ActionType) bool {
 		return true
 	}
 	return false
+}
+
+// DownFile 下载文件
+func DownFile(obj *Object) bool {
+	url := global.ObjectSetting.OBJECT_GET_Download
+	url += "//"
+	url += obj.ResId
+	url += "//"
+	url += obj.Key
+	global.Logger.Debug("操作的URL: ", url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		global.Logger.Error("文件下载失败", err, obj.Key)
+		return false
+	}
+	// req.Header.Set("Authorization", token)
+	// add params
+	// 设置AK
+	req.Header.Set("accessKey", global.ObjectSetting.OBJECT_AK)
+	// que := req.URL.Query()
+	// if params != nil {
+	// 	for key, val := range params {
+	// 		que.Add(key, val)
+	// 	}
+	// 	req.URL.RawQuery = que.Encode()
+	// }
+	// transport := http.Transport{
+	// 	DisableKeepAlives: true,
+	// }
+	// client := &http.Client{
+	// 	Transport: &transport,
+	// }
+	resp, err := global.HttpClient.Do(req)
+	if err != nil {
+		// token = ""
+		global.WaitFlag = true
+		global.Logger.Error(err)
+		return false
+	}
+	defer resp.Body.Close()
+	code := resp.StatusCode
+	if code != 200 {
+		global.Logger.Error("下载失败：" + obj.Path)
+		return false
+	}
+
+	len, _ := strconv.ParseInt(resp.Header.Get("Content-size"), 10, 64)
+	global.Logger.Info("获取的文件长度：", len)
+
+	general.CheckPath(obj.Path)
+	file, _ := os.Create(obj.Path)
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		global.Logger.Error("下载失败：文件拷贝失败：" + obj.Path)
+		file.Close()
+		os.Remove(obj.Path)
+		return false
+	} else {
+		size := general.GetFileSize(obj.Path)
+		global.Logger.Info("下载文件获取的长度：", size)
+		if size != len {
+			global.Logger.Error("下载失败：保存的文件大小错误：" + obj.Path)
+			file.Close()
+			os.Remove(obj.Path)
+			return false
+		}
+	}
+	return true
 }
