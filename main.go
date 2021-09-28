@@ -2,13 +2,10 @@ package main
 
 import (
 	"WowjoyProject/ObjectCloudService/global"
-	"WowjoyProject/ObjectCloudService/internal/routers"
+	"WowjoyProject/ObjectCloudService/internal/model"
 	"WowjoyProject/ObjectCloudService/pkg/object"
 	"WowjoyProject/ObjectCloudService/pkg/workpattern"
-	"net/http"
 	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 // @title 对象存储系统
@@ -30,28 +27,29 @@ func main() {
 		for {
 			select {
 			case data := <-global.ObjectDataChan:
-				if global.WaitFlag {
-					time.Sleep(time.Second)
-					global.WaitFlag = false
-				} else {
-					sc := &Dosomething{key: data}
-					wokerPool.JobQueue <- sc
-				}
+				sc := &Dosomething{key: data}
+				wokerPool.JobQueue <- sc
 			}
 		}
 	}()
 
-	gin.SetMode(global.ServerSetting.RunMode)
-	router := routers.NewRouter()
+	// gin.SetMode(global.ServerSetting.RunMode)
+	// router := routers.NewRouter()
 
-	ser := &http.Server{
-		Addr:           ":" + global.ServerSetting.HttpPort,
-		Handler:        router,
-		ReadTimeout:    global.ServerSetting.ReadTimeout,
-		WriteTimeout:   global.ServerSetting.WriteTimeout,
-		MaxHeaderBytes: 1 << 20,
+	// ser := &http.Server{
+	// 	Addr:           ":" + global.ServerSetting.HttpPort,
+	// 	Handler:        router,
+	// 	ReadTimeout:    global.ServerSetting.ReadTimeout,
+	// 	WriteTimeout:   global.ServerSetting.WriteTimeout,
+	// 	MaxHeaderBytes: 1 << 20,
+	// }
+	// ser.ListenAndServe()
+
+	// 获取任务
+	for {
+		time.Sleep(time.Second * 10)
+		model.AutoUploadObjectData()
 	}
-	ser.ListenAndServe()
 }
 
 type Dosomething struct {

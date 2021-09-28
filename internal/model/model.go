@@ -8,7 +8,7 @@ import (
 )
 
 type KeyData struct {
-	instance_key                                                sql.NullInt64
+	instance_key, img_upload_status, dcm_upload_status          sql.NullInt64
 	imgfile, remoteimgfile, dcmfile, remotedcmfile, ip, virpath sql.NullString
 }
 

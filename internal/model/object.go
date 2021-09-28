@@ -127,46 +127,48 @@ func UpdateDown(key int64, file string, value bool) {
 // 自动上传数据
 func AutoUploadObjectData() {
 	global.Logger.Info("******开始自动上传数据******")
-	for global.AutoUploadFlag {
-		sql := `select im.instance_key,im.img_file_name,im.img_file_name_remote,im.dcm_file_name_remote,ins.file_name,stu.ip,stu.s_virtual_dir
+	sql := `select im.instance_key,im.img_file_upload_status,im.dcm_file_upload_status,im.img_file_name,im.img_file_name_remote,im.dcm_file_name_remote,ins.file_name,stu.ip,stu.s_virtual_dir
 		from  image im 
 		inner join instance ins on im.instance_key = ins.instance_key
 		inner join study_location stu on ins.location_code = stu.n_station_code
-		where im.dcm_file_upload_status=? or im.img_file_upload_status=? order by im.instance_key ASC limit ?;`
-		// global.Logger.Debug(sql)
-		rows, err := global.DBEngine.Query(sql, global.ObjectSetting.OBJECT_Upload_Flag, global.ObjectSetting.OBJECT_Upload_Flag, global.ObjectSetting.OBJECT_TASK)
-		if err != nil {
-			global.Logger.Fatal(err)
-			return
+		where im.dcm_file_upload_status=? or im.img_file_upload_status=? order by im.instance_key DESC limit ?;`
+	// global.Logger.Debug(sql)
+	rows, err := global.DBEngine.Query(sql, global.ObjectSetting.OBJECT_Upload_Flag, global.ObjectSetting.OBJECT_Upload_Flag, global.ObjectSetting.OBJECT_TASK)
+	if err != nil {
+		global.Logger.Fatal(err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		key := KeyData{}
+		_ = rows.Scan(&key.instance_key, &key.img_upload_status, &key.dcm_upload_status, &key.imgfile, &key.remoteimgfile, &key.remotedcmfile, &key.dcmfile, &key.ip, &key.virpath)
+		if key.imgfile.String != "" && key.img_upload_status.Int64 == int64(global.ObjectSetting.OBJECT_Upload_Flag) {
+			file_key, file_path := general.GetFilePath(global.UPLOAD, key.imgfile.String, key.remoteimgfile.String, key.ip.String, key.virpath.String)
+			global.Logger.Info(global.UPLOAD, " 需要处理的文件名：", file_path)
+			data := global.ObjectData{
+				InstanceKey: key.instance_key.Int64,
+				Key:         file_key,
+				Type:        global.UPLOAD,
+				Path:        file_path,
+				Count:       1,
+			}
+			global.ObjectDataChan <- data
 		}
-		defer rows.Close()
-		for rows.Next() {
-			key := KeyData{}
-			_ = rows.Scan(&key.instance_key, &key.imgfile, &key.remoteimgfile, &key.remotedcmfile, &key.dcmfile, &key.ip, &key.virpath)
-			if key.imgfile.String != "" {
-				file_key, file_path := general.GetFilePath(global.UPLOAD, key.imgfile.String, key.remoteimgfile.String, key.ip.String, key.virpath.String)
-				global.Logger.Info(global.UPLOAD, " 需要处理的文件名：", file_path)
-				data := global.ObjectData{
-					InstanceKey: key.instance_key.Int64,
-					Key:         file_key,
-					Type:        global.UPLOAD,
-					Path:        file_path,
-					Count:       1,
-				}
-				global.ObjectDataChan <- data
+		if key.imgfile.String == "" {
+			global.Logger.Info("获取的jpg不存在，更新数据库....")
+			UpdateEmptyPathJPG(key.instance_key.Int64)
+		}
+		if key.dcmfile.String != "" && key.dcm_upload_status.Int64 == int64(global.ObjectSetting.OBJECT_Upload_Flag) {
+			file_key, file_path := general.GetFilePath(global.UPLOAD, key.dcmfile.String, key.remotedcmfile.String, key.ip.String, key.virpath.String)
+			global.Logger.Info(global.UPLOAD, " 需要处理的文件名：", file_path)
+			data := global.ObjectData{
+				InstanceKey: key.instance_key.Int64,
+				Key:         file_key,
+				Type:        global.UPLOAD,
+				Path:        file_path,
+				Count:       1,
 			}
-			if key.dcmfile.String != "" {
-				file_key, file_path := general.GetFilePath(global.UPLOAD, key.dcmfile.String, key.remotedcmfile.String, key.ip.String, key.virpath.String)
-				global.Logger.Info(global.UPLOAD, " 需要处理的文件名：", file_path)
-				data := global.ObjectData{
-					InstanceKey: key.instance_key.Int64,
-					Key:         file_key,
-					Type:        global.UPLOAD,
-					Path:        file_path,
-					Count:       1,
-				}
-				global.ObjectDataChan <- data
-			}
+			global.ObjectDataChan <- data
 		}
 	}
 }
@@ -215,4 +217,10 @@ func AutoDownObjectData() {
 			}
 		}
 	}
+}
+
+// 更新不存在的JPG字段
+func UpdateEmptyPathJPG(key int64) {
+	sql := `image im set im.img_file_upload_status = 2 where ins.instance_key=?`
+	global.DBEngine.Exec(sql, key)
 }

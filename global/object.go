@@ -2,9 +2,6 @@ package global
 
 import "net/http"
 
-// 等待标志
-var WaitFlag bool
-
 // 自动上传标志
 var AutoUploadFlag bool
 

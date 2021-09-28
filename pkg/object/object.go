@@ -90,7 +90,7 @@ func (obj *Object) DownObject() {
 		if !ReDo(obj, global.DOWNLOAD) {
 			global.Logger.Info("数据补偿失败", obj.InstanceKey)
 			// 下载失败更新数据库
-			// model.UpdateDown(obj.InstanceKey, obj.Key, false)
+			model.UpdateDown(obj.InstanceKey, obj.Key, false)
 		}
 	}
 }
@@ -165,7 +165,6 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	if err != nil {
 		// token = ""
 		global.Logger.Error("Do Request got err: ", err)
-		global.WaitFlag = true
 		return errcode.Http_RequestError.Msg()
 	}
 	defer resp.Body.Close()
@@ -266,7 +265,6 @@ func DownFile(obj *Object) bool {
 	resp, err := global.HttpClient.Do(req)
 	if err != nil {
 		// token = ""
-		global.WaitFlag = true
 		global.Logger.Error(err)
 		return false
 	}
