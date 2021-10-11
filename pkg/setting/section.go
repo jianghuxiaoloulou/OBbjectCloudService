@@ -17,6 +17,7 @@ type GeneralSettingS struct {
 	LogMaxAge   int
 	MaxThreads  int
 	MaxTasks    int
+	CronSpec    string
 }
 
 type DatabaseSettingS struct {

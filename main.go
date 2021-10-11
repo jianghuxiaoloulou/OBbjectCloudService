@@ -5,7 +5,8 @@ import (
 	"WowjoyProject/ObjectCloudService/internal/model"
 	"WowjoyProject/ObjectCloudService/pkg/object"
 	"WowjoyProject/ObjectCloudService/pkg/workpattern"
-	"time"
+
+	"github.com/robfig/cron"
 )
 
 // @title 对象存储系统
@@ -45,11 +46,22 @@ func main() {
 	// }
 	// ser.ListenAndServe()
 
-	// 获取任务
-	for {
-		time.Sleep(time.Second * 10)
+	// 获取任务(定时任务)
+	MyCron := cron.New()
+	MyCron.AddFunc(global.GeneralSetting.CronSpec, func() {
+		global.Logger.Info("开始执行定时任务")
 		model.AutoUploadObjectData()
-	}
+	})
+
+	MyCron.Start()
+
+	defer MyCron.Stop()
+
+	select {}
+	// for {
+	// 	time.Sleep(time.Second * 10)
+	// 	model.AutoUploadObjectData()
+	// }
 }
 
 type Dosomething struct {
