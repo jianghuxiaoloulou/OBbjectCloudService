@@ -28,14 +28,10 @@ type Object struct {
 }
 
 func NewObject(data global.ObjectData) *Object {
-	var tags = make(map[string]string)
-	tags["tag1"] = "test"
-	tags["tag2"] = "anji"
 	return &Object{
 		InstanceKey: data.InstanceKey,
 		ResId:       global.ObjectSetting.OBJECT_ResId,
 		Key:         data.Key,
-		Tags:        tags,
 		Path:        data.Path,
 		Count:       data.Count,
 	}
@@ -44,19 +40,13 @@ func NewObject(data global.ObjectData) *Object {
 // 上传对象[POST]
 func (obj *Object) UploadObject() {
 	global.Logger.Info("开始上传对象：", *obj)
-	tag_json, _ := json.Marshal(obj.Tags)
-	tag_string := string(tag_json)
-	params := make(map[string]string)
-	// params["resId"] = obj.ResId
-	// params["key"] = obj.Key
-	params["tags"] = tag_string
-	url := global.ObjectSetting.OBJECT_POST_Upload
-	url += "//"
-	url += obj.ResId
-	url += "//"
-	url += obj.Key
-	global.Logger.Debug("操作的URL: ", url)
-	code := UploadFile(obj.InstanceKey, url, params, "file", obj.Path)
+	// 判断文件大小，来区别是否开始分段上传
+	// var code string
+	// fileSize := general.GetFileSize(obj.Path)
+	// if fileSize >= (int64(global.ObjectSetting.File_Fragment_Size << 20)) {
+	// 	code = UploadLargeFile(obj, fileSize)
+	// } else {
+	code := UploadSmallFile(obj)
 	if code == "00000" {
 		//上传成功更新数据库
 		global.Logger.Info("数据上传成功", obj.InstanceKey)
@@ -84,41 +74,51 @@ func (obj *Object) DownObject() {
 	flag := DownFile(obj)
 	if flag {
 		global.Logger.Info("下载成功：" + obj.Path)
-		model.UpdateDown(obj.InstanceKey, obj.Key, true)
+		// model.UpdateDown(obj.InstanceKey, obj.Key, true)
 	} else {
 		// 下载失败时先补偿操作，补偿操作失败后才更新数据库
 		if !ReDo(obj, global.DOWNLOAD) {
 			global.Logger.Info("数据补偿失败", obj.InstanceKey)
 			// 下载失败更新数据库
-			model.UpdateDown(obj.InstanceKey, obj.Key, false)
+			// model.UpdateDown(obj.InstanceKey, obj.Key, false)
 		}
 	}
 }
 
-// 删除对象[DELETE]
-// func (obj *Object) DelObject() {
-// 	req, _ := http.NewRequest("DELETE", setting.OBJECT_DEL_Delete, nil)
-// 	res, _ := http.DefaultClient.Do(req)
-// 	defer req.Body.Close()
-// 	body, _ := ioutil.ReadAll(res.Body)
-// 	global.Logger.Debug(string(body))
-// }
-
-// 获取对象版本[GET]
-// func (obj *Object) GetVersion() {
-// 	resp, err := http.Get(setting.OBJECT_GET_Version)
-// 	if err != nil {
-// 		loggin.Error("获取对象版本错误：", err)
-// 		return
+// // UploadLargeFile 上传大文件
+// func UploadLargeFile(obj *Object, size int64) string {
+// 	global.Logger.Debug("开始执行大文件上传", obj.Key)
+// 	// num := math.Ceil(float64(size) / float64(global.ObjectSetting.Each_Section_Size))
+// 	// 1.初始化
+// 	UploadId := Multipart_Upload_Init(obj)
+// 	if UploadId == "" {
+// 		global.Logger.Error("分段上传初始化获取UploadId是空,结束任务")
+// 		return ""
 // 	}
-// 	defer resp.Body.Close()
-// 	body, _ := ioutil.ReadAll(resp.Body)
-// 	loggin.Debug(string(body))
+// 	global.Logger.Info("UploadId: ", UploadId)
+// 	// 2.开始上传小段对象
+// 	if Multipart_Upload(obj, UploadId) {
+// 		// 文件上传成功完结操作
+// 		Multipart_Completion(obj, UploadId)
+// 	} else {
+// 		// 文件上传失败取消操作
+// 		Multipart_Abortion(obj, UploadId)
+// 	}
+// 	return ""
 // }
 
-// UploadFile 上传文件
-func UploadFile(instance_key int64, url string, params map[string]string, paramName, path string) string {
-	file, err := os.Open(path)
+// UploadSmallFile 上传小文件
+func UploadSmallFile(obj *Object) string {
+	global.Logger.Debug("开始执行小文件上传")
+	// params["resId"] = obj.ResId
+	// params["key"] = obj.Key
+	url := global.ObjectSetting.OBJECT_POST_Upload
+	url += "//"
+	url += obj.ResId
+	url += "//"
+	url += obj.Key
+	global.Logger.Debug("操作的URL: ", url)
+	file, err := os.Open(obj.Path)
 	if err != nil {
 		return errcode.File_OpenError.Msg()
 	}
@@ -127,10 +127,7 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	for key, val := range params {
-		_ = writer.WriteField(key, val)
-	}
-	formFile, err := writer.CreateFormFile(paramName, path)
+	formFile, err := writer.CreateFormFile("file", obj.Path)
 	if err != nil {
 		global.Logger.Error("CreateFormFile err :", err, file)
 		return errcode.Http_HeadError.Msg()
@@ -173,13 +170,20 @@ func UploadFile(instance_key int64, url string, params map[string]string, paramN
 	if err != nil {
 		return errcode.Http_RespError.Msg()
 	}
-	global.Logger.Info(string(content))
+	global.Logger.Info("resp.Body: ", string(content))
 	var result = make(map[string]interface{})
-	_ = json.Unmarshal(content, &result)
-	code := result["code"]
-	resultcode := code.(string)
-	global.Logger.Info("resultcode: ", resultcode)
-	return resultcode
+	err = json.Unmarshal(content, &result)
+	if err != nil {
+		global.Logger.Error("resp.Body: ", "错误")
+		return errcode.Http_RespError.Msg()
+	}
+	// 解析json
+	if vCode, ok := result["code"]; ok {
+		resultcode := vCode.(string)
+		global.Logger.Info("resultcode: ", resultcode)
+		return resultcode
+	}
+	return ""
 }
 
 func GetToken() string {
@@ -201,7 +205,7 @@ func GetToken() string {
 	if err != nil {
 		return ""
 	}
-	global.Logger.Info(string(content))
+	global.Logger.Info("resp Body: ", string(content))
 	var result = make(map[string]interface{})
 	_ = json.Unmarshal(content, &result)
 	code := result["access_token"]
@@ -232,7 +236,7 @@ func ReDo(obj *Object, action global.ActionType) bool {
 	return false
 }
 
-// DownFile 下载文件
+// DownFile 下载小文件
 func DownFile(obj *Object) bool {
 	url := global.ObjectSetting.OBJECT_GET_Download
 	url += "//"
@@ -249,19 +253,7 @@ func DownFile(obj *Object) bool {
 	// add params
 	// 设置AK
 	req.Header.Set("accessKey", global.ObjectSetting.OBJECT_AK)
-	// que := req.URL.Query()
-	// if params != nil {
-	// 	for key, val := range params {
-	// 		que.Add(key, val)
-	// 	}
-	// 	req.URL.RawQuery = que.Encode()
-	// }
-	// transport := http.Transport{
-	// 	DisableKeepAlives: true,
-	// }
-	// client := &http.Client{
-	// 	Transport: &transport,
-	// }
+
 	resp, err := global.HttpClient.Do(req)
 	if err != nil {
 		// token = ""
@@ -300,3 +292,204 @@ func DownFile(obj *Object) bool {
 	}
 	return true
 }
+
+// // 1.文件分段上传初始化
+// func Multipart_Upload_Init(obj *Object) string {
+// 	global.Logger.Debug("文件分段上传初始化")
+// 	url := global.ObjectSetting.OBJECT_Multipart_Init_URL
+// 	url += "//"
+// 	url += obj.ResId
+// 	url += "//"
+// 	url += obj.Key
+// 	reqParams := make(map[string]string)
+// 	headers := make(map[string]string)
+// 	headers["accessKey"] = global.ObjectSetting.OBJECT_AK
+// 	headers["Connection"] = "close"
+// 	var response = general.PostJson(url, reqParams, headers)
+// 	global.Logger.Debug("文件分段上传初始化response", response)
+// 	var result = make(map[string]interface{})
+// 	err := json.Unmarshal([]byte(response), &result)
+// 	if err != nil {
+// 		global.Logger.Error("resp.Body: ", "错误")
+// 		return ""
+// 	}
+// 	// 解析json
+// 	if vCode, ok := result["code"]; ok {
+// 		resultcode := vCode.(string)
+// 		if resultcode != "00000" {
+// 			global.Logger.Error("文件分段上传初始化接口返回错误", response)
+// 			return ""
+// 		}
+// 	}
+// 	if vData, ok := result["data"]; ok {
+// 		dataMap := vData.(map[string]interface{})
+// 		uploadId := dataMap["uploadId"].(string)
+// 		return uploadId
+// 	}
+// 	return ""
+// }
+
+// // 2.分段对象上传
+// func Multipart_Upload(obj *Object, uploadid string) bool {
+// 	global.Logger.Info("开始执行分段上传函数")
+// 	// 将大文件分成小文件
+// 	status := true
+// 	size := global.ObjectSetting.Each_Section_Size << 20
+// 	var fileMap = make(map[int]string)
+// 	fileMap = general.FileSplit(obj.Path, size)
+// 	global.Logger.Debug("文件分段的map: ", fileMap)
+// 	num := len(fileMap)
+// 	for v, k := range fileMap {
+// 		var code string
+// 		var index int
+// 		if v == num {
+// 			index, code = Multipart_Unifile(obj, k, uploadid, size, num, true)
+// 		} else {
+// 			index, code = Multipart_Unifile(obj, k, uploadid, size, num, false)
+// 		}
+// 		if code == "00000" {
+// 			//上传成功更新数据库
+// 			global.Logger.Info("第", index, "段数据上传成功")
+// 			// model.UpdateUplaode(obj.InstanceKey, obj.Key, true)
+// 		} else {
+// 			global.Logger.Info("第", index, "段数据上传失败")
+// 			// model.UpdateUplaode(obj.InstanceKey, obj.Key, false)
+// 			status = false
+// 		}
+// 		os.Remove(k)
+// 	}
+// 	return status
+// }
+
+// // 分段单文件处理
+// func Multipart_Unifile(obj *Object, filepath string, uploadid string, size int64, num int, flag bool) (int, string) {
+// 	global.Logger.Debug("文件分段上传单文件")
+// 	url := global.ObjectSetting.OBJECT_Multipart_Upload_URL
+// 	url += "//"
+// 	url += obj.ResId
+// 	url += "//"
+// 	url += obj.Key
+// 	file, err := os.Open(filepath)
+// 	if err != nil {
+// 		return num, errcode.File_OpenError.Msg()
+// 	}
+// 	defer file.Close()
+// 	body := &bytes.Buffer{}
+// 	writer := multipart.NewWriter(body)
+// 	writer.WriteField("resId", obj.ResId)
+// 	writer.WriteField("key", obj.Key)
+// 	writer.WriteField("uploadId", uploadid)
+// 	writer.WriteField("filePosition", fmt.Sprintf("%d", int64(num-1)*size))
+// 	writer.WriteField("partNumber", fmt.Sprintf("%d", num))
+// 	if flag {
+// 		writer.WriteField("lastPart", "true")
+// 	}
+// 	formFile, err := writer.CreateFormFile("file", filepath)
+// 	if err != nil {
+// 		global.Logger.Error("CreateFormFile err :", err, file)
+// 		return num, errcode.Http_HeadError.Msg()
+// 	}
+// 	_, err = io.Copy(formFile, file)
+// 	if err != nil {
+// 		global.Logger.Error("io.Copy err :", err, file)
+// 		return num, errcode.File_CopyError.Msg()
+// 	}
+// 	writer.Close()
+// 	request, err := http.NewRequest("POST", url, body)
+// 	if err != nil {
+// 		global.Logger.Error("NewRequest err: ", err, url)
+// 		return num, errcode.Http_RequestError.Msg()
+// 	}
+// 	// request.Header.Set("Authorization", token)
+// 	// 设置AK
+// 	request.Header.Set("accessKey", global.ObjectSetting.OBJECT_AK)
+// 	request.Header.Set("Content-Type", writer.FormDataContentType())
+// 	request.Header.Set("Connection", "close")
+// 	transport := http.Transport{
+// 		DisableKeepAlives: true,
+// 	}
+// 	client := &http.Client{
+// 		Transport: &transport,
+// 	}
+// 	resp, err := client.Do(request)
+// 	if err != nil {
+// 		global.Logger.Error("Do Request got err: ", err)
+// 		return num, errcode.Http_RequestError.Msg()
+// 	}
+// 	defer resp.Body.Close()
+// 	content, err := ioutil.ReadAll(resp.Body)
+// 	if err != nil {
+// 		global.Logger.Error("ioutil.ReadAll got err: ", err)
+// 		return num, errcode.Http_RespError.Msg()
+// 	}
+// 	global.Logger.Info("resp.Body: ", string(content))
+// 	var result = make(map[string]interface{})
+// 	err = json.Unmarshal(content, &result)
+// 	if err != nil {
+// 		global.Logger.Error("resp.Body: ", "错误")
+// 		return num, errcode.Http_RespError.Msg()
+// 	}
+// 	// 解析json
+// 	if vCode, ok := result["code"]; ok {
+// 		resultcode := vCode.(string)
+// 		global.Logger.Info("resultcode: ", resultcode)
+// 		return num, resultcode
+// 	}
+// 	return num, errcode.Http_RespError.Msg()
+// }
+
+// // 完成对象分段上传
+// func Multipart_Completion(obj *Object, uploadid string) string {
+// 	global.Logger.Debug("开始执行完成对象分段上传")
+// 	url := global.ObjectSetting.OBJECT_Multipart_Completion_URL
+// 	url += "//"
+// 	url += obj.ResId
+// 	url += "//"
+// 	url += obj.Key
+// 	reqParams := make(map[string]string)
+// 	headers := make(map[string]string)
+// 	headers["accessKey"] = global.ObjectSetting.OBJECT_AK
+// 	headers["Connection"] = "close"
+// 	var response = general.PostJson(url, reqParams, headers)
+// 	var result = make(map[string]interface{})
+// 	err := json.Unmarshal([]byte(response), &result)
+// 	if err != nil {
+// 		global.Logger.Error("resp.Body: ", "错误")
+// 		return ""
+// 	}
+// 	// 解析json
+// 	if vCode, ok := result["code"]; ok {
+// 		resultcode := vCode.(string)
+// 		global.Logger.Info("resultcode: ", resultcode)
+// 		return resultcode
+// 	}
+// 	return ""
+// }
+
+// // 取消对象分段上传
+// func Multipart_Abortion(obj *Object, uploadid string) string {
+// 	global.Logger.Debug("开始执行完成对象分段上传")
+// 	url := global.ObjectSetting.OBJECT_Multipart_Abortion_URL
+// 	url += "//"
+// 	url += obj.ResId
+// 	url += "//"
+// 	url += obj.Key
+// 	reqParams := make(map[string]string)
+// 	headers := make(map[string]string)
+// 	headers["accessKey"] = global.ObjectSetting.OBJECT_AK
+// 	headers["Connection"] = "close"
+// 	var response = general.PostJson(url, reqParams, headers)
+// 	var result = make(map[string]interface{})
+// 	err := json.Unmarshal([]byte(response), &result)
+// 	if err != nil {
+// 		global.Logger.Error("resp.Body: ", "错误")
+// 		return ""
+// 	}
+// 	// 解析json
+// 	if vCode, ok := result["code"]; ok {
+// 		resultcode := vCode.(string)
+// 		global.Logger.Info("resultcode: ", resultcode)
+// 		return resultcode
+// 	}
+// 	return ""
+// }

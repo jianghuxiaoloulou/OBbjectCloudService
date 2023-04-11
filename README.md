@@ -95,3 +95,8 @@ go get -u github.com/juju/ratelimit@v1.0.1
 # git add README.md
 # git commit -m "first commit"
 # git push -u origin master
+
+
+# 修改记录
+# 2021-10-11 增加模式控制：区别是后台自动上传还是web服务上传
+# WorkType: 0：后台自动上传；1：web_server

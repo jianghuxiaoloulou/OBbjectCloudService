@@ -3,10 +3,13 @@ package main
 import (
 	"WowjoyProject/ObjectCloudService/global"
 	"WowjoyProject/ObjectCloudService/internal/model"
+	"WowjoyProject/ObjectCloudService/internal/routers"
 	"WowjoyProject/ObjectCloudService/pkg/object"
 	"WowjoyProject/ObjectCloudService/pkg/workpattern"
+	"net/http"
+	"time"
 
-	"github.com/robfig/cron"
+	"github.com/gin-gonic/gin"
 )
 
 // @title 对象存储系统
@@ -34,34 +37,17 @@ func main() {
 		}
 	}()
 
-	// gin.SetMode(global.ServerSetting.RunMode)
-	// router := routers.NewRouter()
-
-	// ser := &http.Server{
-	// 	Addr:           ":" + global.ServerSetting.HttpPort,
-	// 	Handler:        router,
-	// 	ReadTimeout:    global.ServerSetting.ReadTimeout,
-	// 	WriteTimeout:   global.ServerSetting.WriteTimeout,
-	// 	MaxHeaderBytes: 1 << 20,
-	// }
-	// ser.ListenAndServe()
-
-	// 获取任务(定时任务)
-	MyCron := cron.New()
-	MyCron.AddFunc(global.GeneralSetting.CronSpec, func() {
-		global.Logger.Info("开始执行定时任务")
-		model.AutoUploadObjectData()
-	})
-
-	MyCron.Start()
-
-	defer MyCron.Stop()
-
-	select {}
-	// for {
-	// 	time.Sleep(time.Second * 10)
-	// 	model.AutoUploadObjectData()
-	// }
+	// 根据工作模式判断
+	switch global.GeneralSetting.WorkMode {
+	case int(global.AutoMode):
+		global.Logger.Info("工作模式配置为自动上传模式")
+		auto()
+	case int(global.WebMode):
+		global.Logger.Info("工作模式配置为Web服务模式")
+		web()
+	default:
+		global.Logger.Info("工作模式配置错误，程序退出")
+	}
 }
 
 type Dosomething struct {
@@ -83,4 +69,39 @@ func (d *Dosomething) Do() {
 		// 数据删除
 		//obj.DelObject()
 	}
+}
+
+func auto() {
+	// 方式一：
+	for {
+		time.Sleep(time.Second * 10)
+		model.AutoUploadObjectData()
+	}
+
+	// 方式二：获取任务(定时任务)
+	// MyCron := cron.New()
+	// MyCron.AddFunc(global.GeneralSetting.CronSpec, func() {
+	// 	global.Logger.Info("开始执行定时任务")
+	// 	model.AutoUploadObjectData()
+	// })
+
+	// MyCron.Start()
+
+	// defer MyCron.Stop()
+
+	// select {}
+}
+
+func web() {
+	gin.SetMode(global.ServerSetting.RunMode)
+	router := routers.NewRouter()
+
+	ser := &http.Server{
+		Addr:           ":" + global.ServerSetting.HttpPort,
+		Handler:        router,
+		ReadTimeout:    global.ServerSetting.ReadTimeout,
+		WriteTimeout:   global.ServerSetting.WriteTimeout,
+		MaxHeaderBytes: 1 << 20,
+	}
+	ser.ListenAndServe()
 }

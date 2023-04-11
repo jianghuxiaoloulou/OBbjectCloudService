@@ -7,12 +7,12 @@ import (
 )
 
 // test upload
-func TestUploadeData(action global.ActionType) {
+func TestUploadeData() {
 	data := global.ObjectData{
 		InstanceKey: 123456,
-		Key:         "pacs/ct56/2020/05/06/CT/CT.ed6b4e41c25c624f14f85410ba506afe.dcm",
-		Type:        action,
-		Path:        "W:\\image\\1234567.dcm",
+		Key:         "ZSH/TEST/MAX/TEST_da.dcm",
+		Type:        global.UPLOAD,
+		Path:        "D:\\work\\ZSH\\image\\RF.26f5c100375732eb9ee3b7b4a89c6cb1.dcm",
 	}
 	global.ObjectDataChan <- data
 }
@@ -156,7 +156,7 @@ func AutoUploadObjectData() {
 		}
 		if key.imgfile.String == "" {
 			global.Logger.Info("获取的jpg不存在，更新数据库....")
-			UpdateEmptyPathJPG(key.instance_key.Int64)
+			// UpdateEmptyPathJPG(key.instance_key.Int64)
 		}
 		if key.dcmfile.String != "" && key.dcm_upload_status.Int64 == int64(global.ObjectSetting.OBJECT_Upload_Flag) {
 			file_key, file_path := general.GetFilePath(global.UPLOAD, key.dcmfile.String, key.remotedcmfile.String, key.ip.String, key.virpath.String)
